@@ -11,7 +11,7 @@ export async function handler(event) {
   try {
     const { type, subject, grade, count } = JSON.parse(event.body);
 
-    const apiKey = process.env.API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("Missing API_KEY");
     }
