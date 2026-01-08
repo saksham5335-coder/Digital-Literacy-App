@@ -43,7 +43,6 @@ export interface User {
   // Teacher-specific fields
   teachingSubjects?: Subject[];
   teachingAssignments?: TeachingAssignment[];
-  numSections?: number;
 }
 
 export interface GameQuestion {
@@ -54,16 +53,6 @@ export interface GameQuestion {
   explanation?: string;
 }
 
-export interface StoryNode {
-  id: string;
-  text: string;
-  choices: {
-    text: string;
-    nextNodeId: string;
-    isCorrect: boolean;
-  }[];
-}
-
 export interface ScoreUpdate {
   userId: string;
   gameType: string;
@@ -71,4 +60,10 @@ export interface ScoreUpdate {
   grade: Grade;
   subject: Subject;
   timestamp: string;
+}
+
+export interface SubjectMastery {
+  subject: Subject;
+  avgScore: number;
+  attempts: number;
 }
