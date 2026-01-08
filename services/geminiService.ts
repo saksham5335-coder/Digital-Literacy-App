@@ -2,6 +2,19 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Grade, Subject } from "../types";
 
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+let lastCall = 0;
+const COOLDOWN_MS = 3000;
+
+function checkRateLimit() {
+  const now = Date.now();
+  if (now - lastCall < COOLDOWN_MS) {
+    throw new Error("Please wait before generating again");
+  }
+  lastCall = now;
+}
+
 const FALLBACK_QUESTIONS: Record<string, any[]> = {
   [Subject.ENGLISH]: [
     { id: 'e1', question: "Identify the figure of speech: 'The wind whispered through the trees'.", options: ["Simile", "Metaphor", "Personification", "Alliteration"], correctAnswer: "Personification", explanation: "Attributing human qualities (whispering) to non-human things (wind) is personification." },
@@ -46,16 +59,17 @@ const SYLLABUS = {
 
 export const geminiService = {
   async generateQuestions(subject: Subject, grade: Grade, count: number = 10) {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const subjectSyllabus = SYLLABUS[subject]?.[grade] || SYLLABUS[subject]?.[Grade.GRADE_6];
-    const syllabusContext = JSON.stringify(subjectSyllabus);
+    checkRateLimit();
+
+    const ai = new GoogleGenAI({ apiKey });
+    const subjectSyllabus =
+      SYLLABUS[subject]?.[grade] || SYLLABUS[subject]?.[Grade.GRADE_6];
 
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Generate ${count} language revision multiple choice questions for ${subject} Grade ${grade} based on this syllabus: ${syllabusContext}. 
-        Mix literature and grammar. Each question MUST include an "explanation" field.
-        Exactly 4 options per question. Output JSON.`,
+        model: "gemini-1.5-flash",
+        contents: `Generate ${count} language revision multiple choice questions for ${subject} Grade ${grade}.
+        Each question MUST include explanation. Output JSON.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -74,74 +88,30 @@ export const geminiService = {
           }
         }
       });
+
       const data = JSON.parse(response.text || "[]");
-      return data.length > 0 ? data : (FALLBACK_QUESTIONS[subject] || []);
+      return data.length ? data : FALLBACK_QUESTIONS[subject];
     } catch (e) {
-      console.warn("Gemini Service Error, using fallback questions:", e);
-      return (FALLBACK_QUESTIONS[subject] || []).slice(0, count);
+      console.warn("Gemini Error → fallback used", e);
+      return FALLBACK_QUESTIONS[subject].slice(0, count);
     }
   },
 
   async generateStory(subject: Subject, grade: Grade) {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const subjectSyllabus = SYLLABUS[subject]?.[grade] || SYLLABUS[subject]?.[Grade.GRADE_6];
-    const syllabusContext = JSON.stringify(subjectSyllabus);
+    checkRateLimit();
+
+    const ai = new GoogleGenAI({ apiKey });
 
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
-        contents: `Create a "Choose Your Own Adventure" revision story in ${subject} for Grade ${grade} using: ${syllabusContext}. Needs 5 nodes. Decisions must be grammar/literature choices. Output JSON.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              startNode: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  text: { type: Type.STRING },
-                  choices: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        text: { type: Type.STRING },
-                        nextNodeId: { type: Type.STRING },
-                        isCorrect: { type: Type.BOOLEAN }
-                      }
-                    }
-                  }
-                }
-              },
-              nodes: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    text: { type: Type.STRING },
-                    choices: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          text: { type: Type.STRING },
-                          nextNodeId: { type: Type.STRING },
-                          isCorrect: { type: Type.BOOLEAN }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+        model: "gemini-1.5-pro",
+        contents: `Create a revision story for ${subject} Grade ${grade}. Output JSON.`,
+        config: { responseMimeType: "application/json" }
       });
+
       return JSON.parse(response.text || "null");
     } catch (e) {
-      console.warn("Story Generation Error:", e);
+      console.warn("Story Error", e);
       return null;
     }
   }
