@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { User, UserRole, Grade, Subject, DeviceType, TeachingAssignment } from '../types';
-import { db } from './store/localDb';
+import { db } from '../store/localDb';
 import { EscapeTheChapter, BossBattle, FlashRecallSprint, InteractiveStory } from './components/Games';
 
 const ADMIN_SECRET_KEY = 'LQGTS';
