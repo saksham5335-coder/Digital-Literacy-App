@@ -1,51 +1,76 @@
-// /api/gemini.ts
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenAI, Type } from '@google/genai';
-import { Grade, Subject } from '../../types';
+port { Grade, Subject } from "../types";
 
-// Make sure you set this in Vercel: GEMINI_API_KEY
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  console.error("GEMINI_API_KEY is missing!");
-}
+const API_URL = "/api/gemini";
 
-const ai = new GoogleGenAI({ apiKey });
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const { type, subject, grade, count } = req.body;
-
-  try {
-    if (type === "questions") {
-      const prompt = `Generate ${count} ${subject} questions for grade ${grade} with options and correct answer. Format as JSON array of {id, question, options, correctAnswer, explanation}`;
-      
-      const response = await ai.generate({
-        model: "gemini-1.5",
-        type: Type.TEXT,
-        prompt
-      });
-
-      const data = JSON.parse(response.output_text || "[]");
-      return res.status(200).json(data);
-
-    } else if (type === "story") {
-      const prompt = `Generate a short ${subject} story for grade ${grade}.`;
-
-      const response = await ai.generate({
-        model: "gemini-1.5",
-        type: Type.TEXT,
-        prompt
-      });
-
-      return res.status(200).json({ story: response.output_text });
-    } else {
-      return res.status(400).json({ error: "Invalid type" });
+const FALLBACK_QUESTIONS: Record<string, any[]> = {
+  [Subject.ENGLISH]: [
+    {
+      id: "e1",
+      question: "Identify the figure of speech: 'The wind whispered through the trees'.",
+      options: ["Simile", "Metaphor", "Personification", "Alliteration"],
+      correctAnswer: "Personification",
+      explanation: "Giving human qualities to non-living things is personification."
     }
-  } catch (err) {
-    console.error("Gemini API error:", err);
-    return res.status(500).json({ error: "Failed to generate data" });
+  ],
+  [Subject.HINDI]: [
+    {
+      id: "h1",
+      question: "सूरदास की प्रसिद्ध रचना कौन सी है?",
+      options: ["साकेत", "सूरसागर", "कामायनी", "यशोधरा"],
+      correctAnswer: "सूरसागर",
+      explanation: "सूरसागर सूरदास की प्रसिद्ध रचना है।"
+    }
+  ],
+  [Subject.FRENCH]: [
+    {
+      id: "f1",
+      question: "Comment dit-on 'I have' en français ?",
+      options: ["Je suis", "J'ai", "Je vais", "Je fais"],
+      correctAnswer: "J'ai",
+      explanation: "'Avoir' means 'to have'."
+    }
+  ]
+};
+
+export const geminiService = {
+  async generateQuestions(subject: Subject, grade: Grade, count: number = 10) {
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "questions", subject, grade, count })
+      });
+
+      if (!res.ok) throw new Error("Server error");
+
+      const data = await res.json();
+      // If the server returns empty, use fallback
+      if (!data || !data.length) throw new Error("No questions returned");
+
+      return data;
+    } catch (err) {
+      console.warn("Falling back to local questions:", err);
+      return FALLBACK_QUESTIONS[subject]?.slice(0, count) || [];
+    }
+  },
+
+  async generateStory(subject: Subject, grade: Grade) {
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "story", subject, grade })
+      });
+
+      if (!res.ok) throw new Error("Server error");
+
+      const data = await res.json();
+      if (!data?.story) throw new Error("No story returned");
+
+      return data.story;
+    } catch (err) {
+      console.warn("Story fallback used:", err);
+      return `Once upon a time, there was a simple ${subject} story for grade ${grade}.`;
+    }
   }
-}
+};
