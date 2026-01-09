@@ -1,9 +1,4 @@
-import type { VercelRequest, VercelResponse } from "vercel";
-
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
@@ -13,7 +8,7 @@ export default async function handler(
 
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-      throw new Error("Missing API_KEY");
+      throw new Error("API_KEY missing");
     }
 
     let prompt = "";
@@ -22,9 +17,9 @@ export default async function handler(
       prompt = `
 Generate ${count || 10} MCQs for ${subject} Grade ${grade}.
 Rules:
-- 4 options
-- include explanation
-- output ONLY valid JSON array
+- Exactly 4 options
+- Include explanation
+- Output ONLY valid JSON array
 `;
     } else if (type === "story") {
       prompt = `
